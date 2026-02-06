@@ -1,23 +1,30 @@
-# Stage 1: Build stage
-FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
-WORKDIR /source
+# Виберіть базовий образ
+FROM node:18 AS build
 
-# Копіюємо проект і відновлюємо залежності
-COPY ["WebApiTransfer/WebApiTransfer.csproj", "WebApiTransfer/"]
-RUN dotnet restore "WebApiTransfer/WebApiTransfer.csproj"
-
-# Копіюємо всі файли і будуємо додаток
-COPY . .
-WORKDIR /source/WebApiTransfer
-RUN dotnet publish -c Release -o /app
-
-# Stage 2: Final image for runtime
-FROM mcr.microsoft.com/dotnet/aspnet:9.0
-
+# Встановіть робочий каталог
 WORKDIR /app
 
-# Копіюємо додаток з етапу побудови
-COPY --from=build /app .
+# Скопіюйте package.json і package-lock.json
+COPY package*.json ./
 
-# Запускаємо додаток
-ENTRYPOINT ["dotnet", "WebApiTransfer.dll"]
+# Встановіть залежності
+RUN npm install
+
+# Скопіюйте весь код
+COPY . .
+
+# Побудуйте проект
+RUN npm run build
+
+# Виберіть образ для продакшн
+FROM nginx:alpine
+# Скопіюйте побудовані файли в каталог для сервера
+COPY --from=build /app/dist /usr/share/nginx/html
+# Скопіюйте nginx налаштування в каталог для сервера
+RUN rm /etc/nginx/conf.d/default.conf
+COPY nginx/nginx.conf /etc/nginx/conf.d
+# Відкрийте порт для сервера
+EXPOSE 80
+
+# Запустіть Nginx
+CMD ["nginx", "-g", "daemon off;"]
